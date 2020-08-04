@@ -2,8 +2,13 @@ import discord
 import random
 
 client = discord.Client()
+
+# Dictionary so you can give it a guild and it will return the game active in that server (if there is one)
 games = dict()
+
+# Dictionary so you can give it a user and it will give you the game that contains that player (if the player is in an active game)
 activePlayers = dict()
+
 help = """!totpal is the master command. Follow it by at least 4 mentions to start a game, or follow it by a flag to issue it other commands
 
 valid flags:
@@ -39,25 +44,31 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
+
+    # So the bot never replies to its own messages
     if message.author == client.user:
         return
-
+    # Handle the messages that start with totpal
     if message.content.lower().startswith('!totpal'.lower()):
         mentions = message.mentions
 
+        # spins off into handleFlags if there are flags in the message
         if len(mentions) == 0 and '-' in message.content:
             await handleFlags(message)
             return
 
+        # Don't let a game start in a server that already has one
         if message.guild in games.keys():
             await message.channel.send("Only one game can be active in a server at a time")
             return
 
+        # Don't let a game start if a player is active in another game (could cause issues with getting article name from player)
         for mention in mentions:
             if mention in activePlayers.keys():
                 await message.channel.send('Error: cannot start a game with a player active in another game')
                 return
 
+        # Don't let a game start with fewer than 4 people
         if len(mentions) < 4:
             await message.channel.send('Error: game requires at least 4 players: 1 guesser and 3 liars.')
             await message.channel.send('Please format as \"!totpal [tag guesser] [tag players]\"')
@@ -65,29 +76,34 @@ async def on_message(message):
                                        'so the wrong person may end up guesser. There isn\'t anything we can do about this.)')
             return
 
-
+        # separate the guesser from the liars
         guesser = mentions[0]
         liars = mentions[1:]
+
+        # set up game
         channel = message.channel
         game = Game(guesser, liars, channel)
         games[message.guild] = game
         activePlayers[guesser] = game
         for liar in liars:
             activePlayers[liar] = game
+            # send request for article to liars
             await liar.send("Please reply with the title of your wikipedia article (not a link to it)")
         await message.channel.send ("waiting on players to reply with their articles")
         return
 
-    if message.author.dm_channel != None and message.channel == message.author.dm_channel:
+    # get guesses from liars
+    if message.author.dm_channel is None and message.channel == message.author.dm_channel:
         liar = message.author
         if not liar in activePlayers.keys():
             return;
         await activePlayers[liar].addArticle(liar, message.content)
 
+    # get the guess from the person
     if message.content.lower().startswith('!Guess'.lower()):
         handleGuess(message)
 
-
+# responds to any flags in the message
 async def handleFlags(message):
     hasFlags = False
     if '-cg' in message.content.lower() or '--cleargame' in message.content.lower():
@@ -105,7 +121,7 @@ async def handleFlags(message):
         return
 
 
-
+# handles a person guessing
 async def handleGuess(message):
     if not message.author in activePlayers.keys():
         await message.channel.send('You are not in an active game, ' + message.author.display_name)
@@ -122,7 +138,7 @@ async def handleGuess(message):
 
     clearGame(message.guild)
 
-
+# Clears the active game in the server, in case the server gets clogged up from some error
 def clearGame(guild):
     if guild in games:
         game = games.pop(message.guild)
@@ -131,7 +147,7 @@ def clearGame(guild):
             activePlayers.pop(liar)
 
 
-
+# sends the message to start the game
 async def startGame(article, channel):
     await channel.send("The article is: " + article)
     await channel.send('Guess in the format "!Guess [tag your guess]')
@@ -147,6 +163,7 @@ class Game:
         for liar in self.liars:
             self.articles[liar] = ""
 
+    # adds the article and associates it with the liar
     async def addArticle(self, liar, article):
         if not liar in self.liars:
             return
@@ -158,6 +175,7 @@ class Game:
             await self.startGame()
         return
 
+    # Starts up the game
     async def startGame(self):
         self.gameActive = True
         pair = random.sample(list(self.articles.items()), 1)
