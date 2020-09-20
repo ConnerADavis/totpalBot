@@ -101,7 +101,7 @@ async def on_message(message):
 
     # get the guess from the person
     if message.content.lower().startswith('!Guess'.lower()):
-        handleGuess(message)
+        await handleGuess(message)
 
 # responds to any flags in the message
 async def handleFlags(message):
@@ -123,6 +123,7 @@ async def handleFlags(message):
 
 # handles a person guessing
 async def handleGuess(message):
+
     if not message.author in activePlayers.keys():
         await message.channel.send('You are not in an active game, ' + message.author.display_name)
     game = activePlayers[message.author]
@@ -141,7 +142,7 @@ async def handleGuess(message):
 # Clears the active game in the server, in case the server gets clogged up from some error
 def clearGame(guild):
     if guild in games:
-        game = games.pop(message.guild)
+        game = games.pop(guild)
         activePlayers.pop(game.guesser)
         for liar in game.liars:
             activePlayers.pop(liar)
